@@ -1,0 +1,8 @@
+# Line endings: LF in the repository, the platform's own in the working tree - whatever core.autocrlf is set to.
+* text=auto
+
+# cmd.exe can misread batch files whose lines end with LF only.
+*.cmd text eol=crlf
+
+*.png binary
+*.ico binary

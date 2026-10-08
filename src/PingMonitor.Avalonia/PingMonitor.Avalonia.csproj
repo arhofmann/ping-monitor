@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>PingMonitor</AssemblyName>
+    <!-- The file description - the name under which Task Manager lists the running program. -->
+    <AssemblyTitle>Ping Monitor</AssemblyTitle>
+    <RootNamespace>PingMonitor.Avalonia</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The icon of the executable on Windows. It is made from packaging/icon.png: cropped to the tile and scaled
+         to the sizes Windows asks for. -->
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <AvaloniaVersion>12.1.3</AvaloniaVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <!-- The DataGrid is released separately from Avalonia and has its own version numbering. -->
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PingMonitor.Core\PingMonitor.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Files the windows load at runtime: their icon. -->
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <!-- For Windows, SkiaSharp and HarfBuzz ship debug symbols of their native libraries, more than 100 MB in total.
+       They have no place in a published build. -->
+  <Target Name="RemoveNativeSymbolsFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(ResolvedFileToPublish.AssetType)' == 'native' and '%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
+</Project>

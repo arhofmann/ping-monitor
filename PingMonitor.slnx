@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PingMonitor.Avalonia/PingMonitor.Avalonia.csproj" />
+    <Project Path="src/PingMonitor.Core/PingMonitor.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PingMonitor.Core.Tests/PingMonitor.Core.Tests.csproj" />
+  </Folder>
+</Solution>

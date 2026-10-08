@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The core deliberately has no package or project references: that way it cannot use a UI toolkit
+       and stays portable to other user interfaces. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="PingMonitor.Core.Tests" />
+  </ItemGroup>
+</Project>

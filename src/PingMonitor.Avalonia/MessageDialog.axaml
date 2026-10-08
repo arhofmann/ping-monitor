@@ -1,0 +1,14 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PingMonitor.Avalonia.MessageDialog"
+        Icon="/Assets/icon.ico"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource WindowBrush}"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="20" Spacing="20">
+        <TextBlock Name="message" MinWidth="260" MaxWidth="420" TextWrapping="Wrap" />
+        <StackPanel Name="buttons" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" />
+    </StackPanel>
+</Window>

@@ -1,0 +1,23 @@
+# Build output of build.cmd, and of the publish command in the README
+*.exe
+*.pdb
+/publish/
+
+# Measurement data the program writes at runtime
+PingMonitor_Outages.csv
+PingHistory_*.csv
+
+# Visual Studio / Rider
+.vs/
+.idea/
+bin/
+obj/
+*.user
+*.suo
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Claude Code (local settings)
+.claude/settings.local.json

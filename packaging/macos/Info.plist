@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Describes the macOS app bundle that the release workflow puts together around the published executable. -->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Ping Monitor</string>
+    <key>CFBundleDisplayName</key>
+    <string>Ping Monitor</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.hfmn-solutions.pingmonitor</string>
+    <key>CFBundleExecutable</key>
+    <string>PingMonitor</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <!-- The release workflow makes this file from packaging/icon.png and puts it into the bundle's resources. -->
+    <key>CFBundleIconFile</key>
+    <string>PingMonitor.icns</string>
+    <!-- Both version entries are replaced by the release workflow with the version from Directory.Build.props. -->
+    <key>CFBundleShortVersionString</key>
+    <string>0.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>0.0.0</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <!-- Shown when macOS asks for permission because the target is a device on the local network, e.g. the router. -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Ping Monitor pings the target you enter, which may be a device on your local network.</string>
+</dict>
+</plist>

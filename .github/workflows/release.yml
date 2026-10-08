@@ -1,0 +1,135 @@
+name: Release
+
+# Builds the downloads for Windows, Linux and macOS. They are self-contained: no .NET runtime has to be installed.
+# - A pushed tag such as v1.2.0 builds them and attaches them to a draft release, which is then published by hand.
+# - Started by hand, the workflow only builds them and attaches them to the run - a rehearsal without a release.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Keeps the first-run banner of the dotnet command out of the output that is read below.
+  DOTNET_NOLOGO: true
+
+jobs:
+  package:
+    name: Package (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # One line per download. Each one is built on its own system, so that it can be tested and packaged there.
+        include:
+          - { rid: win-x64, os: windows-latest }
+          - { rid: linux-x64, os: ubuntu-latest }
+          - { rid: osx-arm64, os: macos-latest }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      # The version comes from Directory.Build.props. A tag that says something else is a mistake.
+      - name: Read version
+        id: version
+        run: |
+          version=$(dotnet msbuild src/PingMonitor.Avalonia -getProperty:Version | tr -d '\r' | tail -n 1)
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in Directory.Build.props."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "package=PingMonitor-$version-${{ matrix.rid }}" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: dotnet run --project tests/PingMonitor.Core.Tests --configuration Release
+
+      - name: Publish
+        run: >
+          dotnet publish src/PingMonitor.Avalonia --configuration Release --runtime ${{ matrix.rid }} --output publish
+          -p:SelfContained=true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=embedded
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist | Out-Null
+          Compress-Archive -Path publish/PingMonitor.exe, LICENSE -DestinationPath dist/${{ steps.version.outputs.package }}.zip
+
+      # A tar archive keeps the executable bit; a zip file would lose it.
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          package=${{ steps.version.outputs.package }}
+          mkdir -p dist "$package"
+          cp publish/PingMonitor LICENSE "$package"
+          tar -czf "dist/$package.tar.gz" "$package"
+
+      # macOS expects an app bundle. Without a certificate from Apple it can only be signed ad hoc: that is enough
+      # to run it, but macOS still asks the user to confirm the first start.
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          app="Ping Monitor.app"
+          mkdir -p dist "$app/Contents/MacOS" "$app/Contents/Resources"
+          cp publish/PingMonitor "$app/Contents/MacOS"
+          cp LICENSE "$app/Contents/Resources"
+          cp packaging/macos/Info.plist "$app/Contents"
+          plutil -replace CFBundleShortVersionString -string "${{ steps.version.outputs.version }}" "$app/Contents/Info.plist"
+          plutil -replace CFBundleVersion -string "${{ steps.version.outputs.version }}" "$app/Contents/Info.plist"
+          # The icon of the bundle: macOS wants it in five sizes, each of them at single and at double resolution.
+          iconset="$RUNNER_TEMP/PingMonitor.iconset"
+          mkdir "$iconset"
+          for size in 16 32 128 256 512; do
+            sips -z $size $size packaging/icon.png --out "$iconset/icon_${size}x${size}.png"
+            sips -z $((size * 2)) $((size * 2)) packaging/icon.png --out "$iconset/icon_${size}x${size}@2x.png"
+          done
+          iconutil --convert icns --output "$app/Contents/Resources/PingMonitor.icns" "$iconset"
+          codesign --force --deep --sign - "$app"
+          ditto -c -k --keepParent "$app" "dist/${{ steps.version.outputs.package }}.zip"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.version.outputs.package }}
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    if: github.ref_type == 'tag'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # create the release
+      id-token: write      # sign the attestation ...
+      attestations: write  # ... and store it
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      # Records that these files were built by this workflow from this commit. Anyone can check a download with
+      #   gh attestation verify <file> --repo arhofmann/ping-monitor
+      # GitHub offers attestations to public repositories only.
+      - uses: actions/attest@v4
+        if: ${{ !github.event.repository.private }}
+        with:
+          subject-path: dist/*
+
+      # A draft, so that the downloads can be tried out before anyone else sees them.
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY"
+          --title "Ping Monitor ${GITHUB_REF_NAME#v}" --generate-notes --draft --verify-tag

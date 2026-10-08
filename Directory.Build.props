@@ -1,0 +1,15 @@
+<Project>
+  <!-- Applies to all projects: core, UI and tests. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <!-- Ends up in the file properties of the built assemblies. For a release, the version is raised here and the
+       commit is tagged v<Version>; the release workflow refuses a tag that says something else. -->
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <Product>Ping Monitor</Product>
+    <Authors>Artem Hofmann</Authors>
+    <Copyright>Copyright (c) 2026 Artem Hofmann</Copyright>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,131 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PingMonitor.Avalonia.App"
+             RequestedThemeVariant="Default">
+    <!-- "Default" follows the system setting; the switch in the sidebar overrides it. -->
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- The colors of the user interface, once per appearance. Controls refer to them with DynamicResource,
+                 so they follow when the appearance changes; GraphControl looks them up by the same names. -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="WindowBrush" Color="#f6f8fa" />
+                    <SolidColorBrush x:Key="SidebarBrush" Color="#eaeef3" />
+                    <SolidColorBrush x:Key="CardBrush" Color="#ffffff" />
+                    <SolidColorBrush x:Key="LineBrush" Color="#dbe1e8" />
+                    <SolidColorBrush x:Key="InkBrush" Color="#131a22" />
+                    <SolidColorBrush x:Key="InkSecondaryBrush" Color="#55626f" />
+                    <SolidColorBrush x:Key="InkMutedBrush" Color="#66737f" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="#0b7285" />
+                    <SolidColorBrush x:Key="AccentHoverBrush" Color="#095c6b" />
+                    <SolidColorBrush x:Key="OnAccentBrush" Color="#ffffff" />
+                    <SolidColorBrush x:Key="SwitchTrackBrush" Color="#dbe1e8" />
+                    <SolidColorBrush x:Key="SwitchThumbBrush" Color="#ffffff" />
+                    <SolidColorBrush x:Key="GridBrush" Color="#e8ecf0" />
+                    <SolidColorBrush x:Key="AxisBrush" Color="#c3ccd6" />
+                    <SolidColorBrush x:Key="PingBrush" Color="#0b7285" />
+                    <SolidColorBrush x:Key="DownloadBrush" Color="#2f6fdb" />
+                    <SolidColorBrush x:Key="UploadBrush" Color="#d9730d" />
+                    <SolidColorBrush x:Key="GoodBrush" Color="#1a8a4a" />
+                    <SolidColorBrush x:Key="GoodSurfaceBrush" Color="#e3f5ea" />
+                    <SolidColorBrush x:Key="GoodLineBrush" Color="#b5dfc5" />
+                    <SolidColorBrush x:Key="GoodInkBrush" Color="#0d5a2e" />
+                    <SolidColorBrush x:Key="WarningBrush" Color="#d98a00" />
+                    <SolidColorBrush x:Key="WarningSurfaceBrush" Color="#fdf2d8" />
+                    <SolidColorBrush x:Key="WarningLineBrush" Color="#f0d48a" />
+                    <SolidColorBrush x:Key="WarningInkBrush" Color="#7a4d00" />
+                    <SolidColorBrush x:Key="CriticalBrush" Color="#d92d3a" />
+                    <SolidColorBrush x:Key="CriticalSurfaceBrush" Color="#fde8ea" />
+                    <SolidColorBrush x:Key="CriticalLineBrush" Color="#f3b8be" />
+                    <SolidColorBrush x:Key="CriticalInkBrush" Color="#9b1c27" />
+
+                    <!-- Input fields and the outage list come from the Fluent theme. It reads their colors
+                         from the names below the three brushes, which are pointed at our colors here. -->
+                    <SolidColorBrush x:Key="FieldBrush" Color="#ffffff" />
+                    <SolidColorBrush x:Key="FieldLineBrush" Color="#c8d0da" />
+                    <SolidColorBrush x:Key="FieldDisabledBrush" Color="#f0f3f6" />
+                    <StaticResource x:Key="ComboBoxBackground" ResourceKey="FieldBrush" />
+                    <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="FieldLineBrush" />
+                    <StaticResource x:Key="ComboBoxBackgroundDisabled" ResourceKey="FieldDisabledBrush" />
+                    <StaticResource x:Key="ComboBoxBorderBrushDisabled" ResourceKey="LineBrush" />
+                    <StaticResource x:Key="TextControlBackground" ResourceKey="FieldBrush" />
+                    <StaticResource x:Key="TextControlBorderBrush" ResourceKey="FieldLineBrush" />
+                    <StaticResource x:Key="TextControlBackgroundDisabled" ResourceKey="FieldDisabledBrush" />
+                    <StaticResource x:Key="TextControlBorderBrushDisabled" ResourceKey="LineBrush" />
+                    <StaticResource x:Key="RepeatButtonBackgroundDisabled" ResourceKey="FieldDisabledBrush" />
+                    <StaticResource x:Key="DataGridColumnHeaderBackgroundBrush" ResourceKey="CardBrush" />
+                    <StaticResource x:Key="DataGridGridLinesBrush" ResourceKey="GridBrush" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="WindowBrush" Color="#0f1317" />
+                    <SolidColorBrush x:Key="SidebarBrush" Color="#141a20" />
+                    <SolidColorBrush x:Key="CardBrush" Color="#171e26" />
+                    <SolidColorBrush x:Key="LineBrush" Color="#242d38" />
+                    <SolidColorBrush x:Key="InkBrush" Color="#e7edf3" />
+                    <SolidColorBrush x:Key="InkSecondaryBrush" Color="#a3b1bf" />
+                    <SolidColorBrush x:Key="InkMutedBrush" Color="#8494a4" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="#38c6d9" />
+                    <SolidColorBrush x:Key="AccentHoverBrush" Color="#5fd3e3" />
+                    <SolidColorBrush x:Key="OnAccentBrush" Color="#04252b" />
+                    <SolidColorBrush x:Key="SwitchTrackBrush" Color="#0b0e12" />
+                    <SolidColorBrush x:Key="SwitchThumbBrush" Color="#26303b" />
+                    <SolidColorBrush x:Key="GridBrush" Color="#212a34" />
+                    <SolidColorBrush x:Key="AxisBrush" Color="#364250" />
+                    <SolidColorBrush x:Key="PingBrush" Color="#38c6d9" />
+                    <SolidColorBrush x:Key="DownloadBrush" Color="#6ea8fe" />
+                    <SolidColorBrush x:Key="UploadBrush" Color="#ffa94d" />
+                    <SolidColorBrush x:Key="GoodBrush" Color="#4cd07d" />
+                    <SolidColorBrush x:Key="GoodSurfaceBrush" Color="#13291d" />
+                    <SolidColorBrush x:Key="GoodLineBrush" Color="#1f4a31" />
+                    <SolidColorBrush x:Key="GoodInkBrush" Color="#9be7b7" />
+                    <SolidColorBrush x:Key="WarningBrush" Color="#f5b942" />
+                    <SolidColorBrush x:Key="WarningSurfaceBrush" Color="#2e2410" />
+                    <SolidColorBrush x:Key="WarningLineBrush" Color="#5a4517" />
+                    <SolidColorBrush x:Key="WarningInkBrush" Color="#f8d98a" />
+                    <SolidColorBrush x:Key="CriticalBrush" Color="#ff6b6b" />
+                    <SolidColorBrush x:Key="CriticalSurfaceBrush" Color="#331519" />
+                    <SolidColorBrush x:Key="CriticalLineBrush" Color="#5e242b" />
+                    <SolidColorBrush x:Key="CriticalInkBrush" Color="#ffb3b8" />
+
+                    <SolidColorBrush x:Key="FieldBrush" Color="#1c242d" />
+                    <SolidColorBrush x:Key="FieldLineBrush" Color="#303b48" />
+                    <SolidColorBrush x:Key="FieldDisabledBrush" Color="#161d24" />
+                    <StaticResource x:Key="ComboBoxBackground" ResourceKey="FieldBrush" />
+                    <StaticResource x:Key="ComboBoxBorderBrush" ResourceKey="FieldLineBrush" />
+                    <StaticResource x:Key="ComboBoxBackgroundDisabled" ResourceKey="FieldDisabledBrush" />
+                    <StaticResource x:Key="ComboBoxBorderBrushDisabled" ResourceKey="LineBrush" />
+                    <StaticResource x:Key="TextControlBackground" ResourceKey="FieldBrush" />
+                    <StaticResource x:Key="TextControlBorderBrush" ResourceKey="FieldLineBrush" />
+                    <StaticResource x:Key="TextControlBackgroundDisabled" ResourceKey="FieldDisabledBrush" />
+                    <StaticResource x:Key="TextControlBorderBrushDisabled" ResourceKey="LineBrush" />
+                    <StaticResource x:Key="RepeatButtonBackgroundDisabled" ResourceKey="FieldDisabledBrush" />
+                    <StaticResource x:Key="DataGridColumnHeaderBackgroundBrush" ResourceKey="CardBrush" />
+                    <StaticResource x:Key="DataGridGridLinesBrush" ResourceKey="GridBrush" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <!-- Rounder corners for the controls of the Fluent theme. -->
+            <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
+
+            <!-- Icons, drawn on a 16 x 16 grid. The first two are filled, the others stroked. -->
+            <StreamGeometry x:Key="PlayIcon">M5,3.5 L12.5,8 L5,12.5 Z</StreamGeometry>
+            <StreamGeometry x:Key="StopIcon">M5,4 H11 A1,1 0 0 1 12,5 V11 A1,1 0 0 1 11,12 H5 A1,1 0 0 1 4,11 V5 A1,1 0 0 1 5,4 Z</StreamGeometry>
+            <StreamGeometry x:Key="PulseIcon">M1,8.5 H4.2 L6,4 L9.2,12 L11,8.5 H15</StreamGeometry>
+            <StreamGeometry x:Key="ExportIcon">M8,2.5 V10 M5,7.5 L8,10.5 L11,7.5 M3,13 H13</StreamGeometry>
+            <StreamGeometry x:Key="ClearIcon">M3,4.5 H13 M6.5,4.5 V2.5 H9.5 V4.5 M4.5,4.5 L5,13.5 H11 L11.5,4.5</StreamGeometry>
+            <StreamGeometry x:Key="DownIcon">M8,3 V13 M4,9 L8,13 L12,9</StreamGeometry>
+            <StreamGeometry x:Key="UpIcon">M8,13 V3 M4,7 L8,3 L12,7</StreamGeometry>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme>
+            <FluentTheme.Palettes>
+                <ColorPaletteResources x:Key="Light" Accent="#0b7285" />
+                <ColorPaletteResources x:Key="Dark" Accent="#38c6d9" />
+            </FluentTheme.Palettes>
+        </FluentTheme>
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+    </Application.Styles>
+</Application>
