@@ -10,17 +10,25 @@ namespace PingMonitor.Core.Tests
 
         public static void TrafficIsWrittenInWholeKbitPerSecond()
         {
-            string[] lines = Export(new Sample(Time, true, 23, new TrafficRate(12345678f, 499f)));
+            string[] lines = Export(new Sample(Time, true, 23, CheckResult.Ok, CheckResult.Ok, new TrafficRate(12345678f, 499f)));
 
-            Check.Equal("Time;Result;Response time (ms);Download (kbit/s);Upload (kbit/s)", lines[0]);
-            CheckEndsWith(";OK;23;12346;0", lines[1]);
+            Check.Equal("Time;Result;Response time (ms);Download (kbit/s);Upload (kbit/s);DNS;TCP", lines[0]);
+            CheckEndsWith(";OK;23;12346;0;OK;OK", lines[1]);
         }
 
         public static void UnknownTrafficLeavesItsColumnsEmpty()
         {
-            string[] lines = Export(new Sample(Time, false, 0, TrafficRate.Unknown));
+            string[] lines = Export(new Sample(Time, false, 0, CheckResult.Failed, CheckResult.Failed, TrafficRate.Unknown));
 
-            CheckEndsWith(";No response;;;", lines[1]);
+            CheckEndsWith(";No response;;;;Failed;Failed", lines[1]);
+        }
+
+        // The ping was answered, the DNS check failed, and the TCP check was turned off.
+        public static void ChecksHaveAColumnEach()
+        {
+            string[] lines = Export(new Sample(Time, true, 23, CheckResult.Failed, CheckResult.None, new TrafficRate(1000f, 1000f)));
+
+            CheckEndsWith(";OK;23;1;1;Failed;", lines[1]);
         }
 
         // The time at the start of the line is in local time and thus depends on the machine - only what follows is compared.

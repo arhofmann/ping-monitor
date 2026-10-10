@@ -19,7 +19,13 @@ namespace PingMonitor.Core
         // Pings are being lost, but the threshold for an outage has not been reached yet.
         PingLost,
 
-        // An outage is in progress.
+        // Pings get through, but a check is failing; the threshold for an outage has not been reached yet.
+        CheckFailed,
+
+        // An outage is in progress in which pings still get through: the connection is there, but a check keeps failing.
+        Limited,
+
+        // An outage is in progress, and pings are being lost.
         Offline
     }
 }

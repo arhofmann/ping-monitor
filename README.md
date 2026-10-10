@@ -2,7 +2,9 @@
 
 Ping Monitor is a small desktop app that records when your internet connection goes down and when it comes back.
 It pings a target at a fixed interval, logs every outage to a CSV file, and plots the response time next to
-your computer's network throughput, so you can see whether disruptions coincide with heavy load.
+your computer's network throughput, so you can see whether disruptions coincide with heavy load. Alongside
+every ping it checks whether names can be resolved and whether a connection to the target can be established —
+both can fail while pings still get through.
 
 ![Ping Monitor during a measurement: status, key figures, the graphs of response time and data rate, and the list of outages](docs/screenshot.png)
 
@@ -24,13 +26,16 @@ your computer's network throughput, so you can see whether disruptions coincide 
 ## Features
 
 - **Continuous ping** of an IP address or host name, every 1 to 60 seconds.
+- **DNS and TCP checks** alongside every ping. They catch the case in which the connection is there but cannot
+  be used: pings are answered, yet names are no longer resolved or no connection can be established.
 - **Outage detection** with an adjustable threshold: a disruption counts as an outage after a number of
-  consecutive lost pings that you choose (2 by default).
-- **Live graph** of response time and download/upload rate on a shared time axis. Zoom with the mouse wheel,
-  pan by dragging, and use the overview bar to move through the entire history.
+  consecutive failures that you choose (2 by default). A failure is a lost ping or a failed check.
+- **Live graph** of response time and download/upload rate on a shared time axis, with lost pings marked in red
+  and failed checks in amber. Zoom with the mouse wheel, pan by dragging, and use the overview bar to move
+  through the entire history.
 - **Key figures** at a glance: current, average, minimum and maximum response time, packet loss, data rate,
   number of outages and total downtime.
-- **Outage log**: every outage is appended to a CSV file as soon as it ends.
+- **Outage log**: every outage is appended to a CSV file as soon as it ends, together with what failed.
 - **History export**: all samples of the session can be saved as a CSV file.
 - **Light and dark appearance**, or follow the system setting.
 - The window title carries the current status, so it stays visible in the taskbar.
@@ -107,10 +112,16 @@ dotnet publish src/PingMonitor.Avalonia --configuration Release --runtime linux-
 
 1. Enter a **Target**: an IP address or a host name. `1.1.1.1` (Cloudflare), `8.8.8.8` (Google) and
    `9.9.9.9` (Quad9) are offered as presets; they are public servers that cope well with continuous pings.
-2. Choose the **Interval** between two pings and press **Start**.
-3. Under **Outages**, set how many lost pings in a row make an outage.
-4. Watch the graph. The box under **View** sets the time range it shows, from the last 5 minutes to the
+2. Choose the **Interval** between two pings.
+3. Under **Also check**, choose what is checked alongside every ping: **DNS**, **TCP** or both. Both are turned
+   on to begin with and can be switched while the measurement is running.
+4. Press **Start**.
+5. Under **Outages**, set how many failures in a row make an outage.
+6. Watch the graph. The box under **View** sets the time range it shows, from the last 5 minutes to the
    entire history.
+
+The status tells what is wrong. **Offline** means that pings are lost. If pings get through but a check keeps
+failing, the status names the check instead, for example **DNS failing for 12 s**.
 
 **Export history …** saves all samples as a CSV file. **Clear** discards the history, the statistics and the
 list of outages; what has already been written to the outage log stays there.
@@ -131,7 +142,13 @@ A few things worth knowing:
 - Host names are resolved once, when the measurement starts. During an outage a DNS query could hang, and the
   monitor would then measure DNS instead of the connection.
 - A ping counts as lost if no response arrives within the interval, or within 3 seconds if the interval is
-  longer than that.
+  longer than that. The checks have the same time to succeed.
+- The DNS check asks the DNS servers your computer is set to use — at home that is usually the router — for
+  the address of `example.com`. It sends the query itself, so the answer never comes from the cache of the
+  operating system. The check fails if no server answers in time, or if every answer reports an error.
+- The TCP check opens a connection to port 443 of the target and closes it again right away; no data is
+  transferred. The three presets accept such connections. For a target that does not, turn the check off —
+  otherwise it fails all the time.
 - The data rate is read from the network interface through which the target is reached. Only this computer's
   traffic is counted; what other devices on the network transfer is not visible.
 - The history is kept in memory, up to 2,000,000 samples — a good three weeks at one ping per second. It is
@@ -153,28 +170,33 @@ lost as soon as the app is replaced by a newer version. The path is shown at the
 clicking it opens the folder.
 
 ```csv
-Target;Start;End;Duration (seconds);Lost pings;Note
-1.1.1.1;2026-10-07 14:24:47;2026-10-07 14:24:52;5;5;
-1.1.1.1;2026-10-07 16:15:21;2026-10-07 16:15:27;6;3;Measurement stopped before the outage ended
+Target;Start;End;Duration (seconds);Lost pings;Note;Failed
+1.1.1.1;2026-10-07 14:24:47;2026-10-07 14:24:52;5;5;;Ping + DNS + TCP
+1.1.1.1;2026-10-07 15:02:10;2026-10-07 15:03:40;90;0;;DNS
+1.1.1.1;2026-10-07 16:15:21;2026-10-07 16:15:27;6;3;Measurement stopped before the outage ended;Ping
 ```
 
 | Column | Meaning |
 | --- | --- |
 | `Target` | The address or name that was pinged |
-| `Start` | Time of the first lost ping |
-| `End` | Time of the first ping that got through again |
+| `Start` | Time of the first failure |
+| `End` | Time of the first ping at which everything worked again |
 | `Duration (seconds)` | Length of the outage, rounded to whole seconds |
-| `Lost pings` | Number of consecutive pings without a response |
+| `Lost pings` | Number of pings without a response during the outage; 0 if only checks failed |
 | `Note` | `Measurement stopped before the outage ended` if the measurement was stopped or cleared, or the app was closed, during the outage; otherwise empty |
+| `Failed` | What failed at some point during the outage: `Ping`, `DNS`, `TCP`, or several of them joined by ` + ` |
+
+A log written by a version without the checks lacks the `Failed` column. The first outage that is appended to
+such a log adds the column to it; its existing rows get `Ping`, which is all that could fail back then.
 
 ### History export: `PingHistory_<date>_<time>.csv`
 
 The export contains one row per ping. You choose where to save it.
 
 ```csv
-Time;Result;Response time (ms);Download (kbit/s);Upload (kbit/s)
-2026-10-07 14:24:46;OK;23;12346;512
-2026-10-07 14:24:47;No response;;12101;498
+Time;Result;Response time (ms);Download (kbit/s);Upload (kbit/s);DNS;TCP
+2026-10-07 14:24:46;OK;23;12346;512;OK;OK
+2026-10-07 14:24:47;No response;;12101;498;Failed;Failed
 ```
 
 | Column | Meaning |
@@ -183,6 +205,7 @@ Time;Result;Response time (ms);Download (kbit/s);Upload (kbit/s)
 | `Result` | `OK` or `No response` |
 | `Response time (ms)` | Round-trip time; empty for a lost ping |
 | `Download (kbit/s)`, `Upload (kbit/s)` | Average data rate since the previous ping; empty if it could not be measured |
+| `DNS`, `TCP` | Result of the check that ran alongside the ping: `OK` or `Failed`; empty if the check was turned off |
 
 ## Project structure
 
@@ -197,9 +220,10 @@ tests/
 The core deliberately has no package or project references. That keeps every UI toolkit out of it, so the
 user interface can be replaced without touching the logic.
 
-How the ping is sent and how the traffic is counted is replaceable as well: both sit behind the interfaces
-`IPinger` and `ITrafficCounter`, and the program is wired together in one place,
-[App.axaml.cs](src/PingMonitor.Avalonia/App.axaml.cs).
+How the ping is sent, how DNS and TCP are checked and how the traffic is counted is replaceable as well: all
+of it sits behind the interfaces `IPinger`, `IDnsProbe`, `ITcpProbe` and `ITrafficCounter`, and the program is
+wired together in one place, [App.axaml.cs](src/PingMonitor.Avalonia/App.axaml.cs). The name the DNS check
+asks for and the port the TCP check connects to are set there, too.
 
 ## Tests
 
@@ -226,6 +250,9 @@ Started by hand from the Actions tab, the workflow only builds the packages and 
 - The downloads are not code-signed, so Windows and macOS warn before the first start.
 - The user interface is available in English only.
 - Only one target can be monitored at a time.
+- A DNS server may answer from a cache of its own. If the failure lies beyond that server, the DNS check only
+  notices it once the cached answer has expired.
+- Problems that only affect IPv6 or large packets are not detected.
 - The history does not survive a restart; only the outage log does.
 
 ## Contributing

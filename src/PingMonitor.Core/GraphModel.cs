@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace PingMonitor.Core
 {
-    // Prepares the history for the graph: time window, axes, lines and outage blocks.
+    // Prepares the history for the graph: time window, axes, lines and the blocks that mark lost pings and failed checks.
     // Response time and data rate each have their own value axis but share the time axis.
     // Everything is calculated in columns, one per pixel of width - what ends up drawing it does not matter here.
     //
@@ -57,6 +57,10 @@ namespace PingMonitor.Core
         private int[] colFail = new int[0];
         private long[] colTime = new long[0];
         private bool[] colRed = new bool[0];
+
+        // colLimited marks the columns in which the ping was answered but a check failed; colChecks says which checks.
+        private bool[] colLimited = new bool[0];
+        private Failures[] colChecks = new Failures[0];
 
         public GraphModel(ConnectionMonitor monitor)
         {
@@ -226,12 +230,14 @@ namespace PingMonitor.Core
             return new ColumnRange(start, Math.Max(OverviewColumn(to, width) - start, 1));
         }
 
-        // The outages in the columns of the overview, oldest first.
-        public List<ColumnRange> OutagesInOverview(int width)
+        // The outages in the columns of the overview, oldest first: with "limited" those in which pings got through
+        // all along, without it those in which pings were lost.
+        public List<ColumnRange> OutagesInOverview(int width, bool limited)
         {
             List<ColumnRange> ranges = new List<ColumnRange>();
             foreach (Outage outage in monitor.Outages)
             {
+                if (outage.IsLimited != limited) continue;
                 DateTime end = outage.IsOpen ? now : outage.End;
                 // Very old samples are dropped at some point; their outages no longer lie in the history then.
                 if (end <= overviewFrom || outage.Start >= overviewTo) continue;
@@ -246,15 +252,13 @@ namespace PingMonitor.Core
         // Contiguous columns without a response.
         public List<ColumnRange> OutageRanges()
         {
-            List<ColumnRange> ranges = new List<ColumnRange>();
-            for (int c = 0; c < columns; )
-            {
-                if (!colRed[c]) { c++; continue; }
-                int start = c;
-                while (c < columns && colRed[c]) c++;
-                ranges.Add(new ColumnRange(start, c - start));
-            }
-            return ranges;
+            return Ranges(colRed);
+        }
+
+        // Contiguous columns in which the ping was answered, but a check failed.
+        public List<ColumnRange> LimitedRanges()
+        {
+            return Ranges(colLimited);
         }
 
         // The response time line, split into continuous pieces: it breaks at outages and measurement pauses.
@@ -299,11 +303,13 @@ namespace PingMonitor.Core
             else
                 valueText = prefix + Fmt.Ms(ms);
 
+            string checksText = colChecks[found] == Failures.None ? null : Fmt.Failed(colChecks[found]) + " failed";
+
             TrafficRate traffic = colDown[found] < 0 ? TrafficRate.Unknown : new TrafficRate(colDown[found], colUp[found]);
             string downText = traffic.IsKnown ? prefix + Fmt.Bitrate(traffic.Down) : null;
             string upText = traffic.IsKnown ? prefix + Fmt.Bitrate(traffic.Up) : null;
 
-            return new GraphReading(found, ms, traffic, timeText, valueText, downText, upText);
+            return new GraphReading(found, ms, traffic, timeText, valueText, checksText, downText, upText);
         }
 
         private static void FlushRun(List<GraphPoint[]> runs, List<GraphPoint> run)
@@ -395,6 +401,20 @@ namespace PingMonitor.Core
             return (int)((time - overviewFrom).Ticks * (double)width / (overviewTo - overviewFrom).Ticks);
         }
 
+        // The contiguous stretches of marked columns.
+        private List<ColumnRange> Ranges(bool[] marked)
+        {
+            List<ColumnRange> ranges = new List<ColumnRange>();
+            for (int c = 0; c < columns; )
+            {
+                if (!marked[c]) { c++; continue; }
+                int start = c;
+                while (c < columns && marked[c]) c++;
+                ranges.Add(new ColumnRange(start, c - start));
+            }
+            return ranges;
+        }
+
         // A line through the column values, split into continuous pieces.
         private List<GraphPoint[]> Runs(float[] values, bool breakAtOutages)
         {
@@ -429,12 +449,16 @@ namespace PingMonitor.Core
                 colFail = new int[w];
                 colTime = new long[w];
                 colRed = new bool[w];
+                colLimited = new bool[w];
+                colChecks = new Failures[w];
             }
             else
             {
                 Array.Clear(colCount, 0, w);
                 Array.Clear(colFail, 0, w);
                 Array.Clear(colRed, 0, w);
+                Array.Clear(colLimited, 0, w);
+                Array.Clear(colChecks, 0, w);
             }
             for (int i = 0; i < w; i++) colMs[i] = colDown[i] = colUp[i] = -1;
 
@@ -451,18 +475,24 @@ namespace PingMonitor.Core
                     if (s.Traffic.Down > colDown[c]) colDown[c] = s.Traffic.Down;
                     if (s.Traffic.Up > colUp[c]) colUp[c] = s.Traffic.Up;
                 }
+                Failures failed = s.Failures;
+                colChecks[c] |= failed & ~Failures.Ping;
                 if (s.Ok)
                 {
                     if (s.Ms > colMs[c]) colMs[c] = s.Ms;
-                    continue;
+                    if (failed == Failures.None) continue;
+                }
+                else
+                {
+                    colFail[c]++;
                 }
 
-                colFail[c]++;
-                // Extend the red up to the next sample so that an outage appears as one solid block.
+                // Extend the mark up to the next sample so that an outage appears as one solid block.
+                bool[] marked = s.Ok ? colLimited : colRed;
                 long until = s.Time.Ticks + monitor.IntervalMs * TimeSpan.TicksPerMillisecond;
                 if (i + 1 < n && samples[i + 1].Time.Ticks - s.Time.Ticks <= gapTicks) until = samples[i + 1].Time.Ticks;
                 long end = Math.Min(w, (until - from.Ticks) * w / span);
-                for (int k = c; k == c || k < end; k++) colRed[k] = true;
+                for (int k = c; k == c || k < end; k++) marked[k] = true;
             }
         }
     }

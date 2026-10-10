@@ -39,6 +39,15 @@ namespace PingMonitor.Core.Tests
             Check.Equal("0.5 Gbit/s", Fmt.BitrateOnScale(500000000, 1000000000));
         }
 
+        public static void FailuresAreNamedInAFixedOrder()
+        {
+            Check.Equal("", Fmt.Failed(Failures.None));
+            Check.Equal("Ping", Fmt.Failed(Failures.Ping));
+            Check.Equal("DNS", Fmt.Failed(Failures.Dns));
+            Check.Equal("DNS + TCP", Fmt.Failed(Failures.Tcp | Failures.Dns));
+            Check.Equal("Ping + DNS + TCP", Fmt.Failed(Failures.Ping | Failures.Dns | Failures.Tcp));
+        }
+
         public static void DisplayFollowsTheRegionalSettings()
         {
             CultureInfo.CurrentCulture = new CultureInfo("de-DE");

@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Net;
-using System.Threading.Tasks;
 using PingMonitor.Core;
 
 namespace PingMonitor.Core.Tests
@@ -289,20 +287,90 @@ namespace PingMonitor.Core.Tests
         {
             ConnectionMonitor monitor = NewMonitor();
             Record(monitor, 0, 300);
-            for (int second = 300; second < 330; second++) monitor.AddSample(Began.AddSeconds(second), false, 0, TrafficRate.Unknown);
+            for (int second = 300; second < 330; second++) monitor.AddSample(Fakes.LostPing(Began.AddSeconds(second)));
             Record(monitor, 330, 600);
             GraphModel model = FiveMinutes(monitor);
 
-            List<ColumnRange> outages = model.OutagesInOverview(601);
+            List<ColumnRange> outages = model.OutagesInOverview(601, false);
 
             Check.Equal(1, outages.Count);
             Check.Equal(300, outages[0].Start);
             Check.Equal(30, outages[0].Length);
+            Check.Equal(0, model.OutagesInOverview(601, true).Count);
+        }
+
+        public static void OverviewTellsOutagesWithAnsweredPingsApart()
+        {
+            ConnectionMonitor monitor = NewMonitor();
+            Record(monitor, 0, 300);
+            for (int second = 300; second < 330; second++)
+                monitor.AddSample(Fakes.Sample(Began.AddSeconds(second), CheckResult.Failed, CheckResult.Ok));
+            Record(monitor, 330, 600);
+            GraphModel model = FiveMinutes(monitor);
+
+            List<ColumnRange> limited = model.OutagesInOverview(601, true);
+
+            Check.Equal(1, limited.Count);
+            Check.Equal(300, limited[0].Start);
+            Check.Equal(30, limited[0].Length);
+            Check.Equal(0, model.OutagesInOverview(601, false).Count);
+        }
+
+        // Seconds 0 to 9 are fine, in 10 to 19 the DNS check fails, in 20 to 29 the ping is lost as well.
+        public static void FailedChecksAreMarkedApartFromLostPings()
+        {
+            ConnectionMonitor monitor = NewMonitor();
+            Record(monitor, 0, 10);
+            for (int second = 10; second < 20; second++)
+                monitor.AddSample(Fakes.Sample(Began.AddSeconds(second), CheckResult.Failed, CheckResult.Ok));
+            for (int second = 20; second < 30; second++)
+                monitor.AddSample(new Sample(Began.AddSeconds(second), false, 0, CheckResult.Failed, CheckResult.Failed, TrafficRate.Unknown));
+            Record(monitor, 30, 40);
+            GraphModel model = FiveMinutes(monitor);
+
+            List<ColumnRange> limited = model.LimitedRanges();
+            List<ColumnRange> lost = model.OutageRanges();
+
+            Check.Equal(1, limited.Count);
+            Check.Equal(10, limited[0].Start);
+            Check.Equal(10, limited[0].Length);
+            Check.Equal(1, lost.Count);
+            Check.Equal(20, lost[0].Start);
+            Check.Equal(10, lost[0].Length);
+        }
+
+        // The response time line breaks where pings are lost, but not where only a check fails.
+        public static void ResponseTimeRunsOnThroughFailedChecks()
+        {
+            ConnectionMonitor monitor = NewMonitor();
+            Record(monitor, 0, 10);
+            for (int second = 10; second < 20; second++)
+                monitor.AddSample(Fakes.Sample(Began.AddSeconds(second), CheckResult.Ok, CheckResult.Failed));
+            Record(monitor, 20, 30);
+            GraphModel model = FiveMinutes(monitor);
+
+            Check.Equal(1, model.PingRuns().Count);
+            Check.Equal(30, model.PingRuns()[0].Length);
+        }
+
+        public static void ReadingNamesTheChecksThatFailed()
+        {
+            ConnectionMonitor monitor = NewMonitor();
+            Record(monitor, 0, 10);
+            monitor.AddSample(Fakes.Sample(Began.AddSeconds(10), CheckResult.Failed, CheckResult.Failed));
+            monitor.AddSample(Fakes.LostPing(Began.AddSeconds(11)));
+            GraphModel model = FiveMinutes(monitor);
+
+            Check.Equal(null, model.ReadingNear(5).ChecksText);
+            Check.Equal("DNS + TCP failed", model.ReadingNear(10).ChecksText);
+            Check.Equal("20 ms", model.ReadingNear(10).ValueText);
+            Check.Equal(null, model.ReadingNear(11).ChecksText);
+            Check.Equal("No response", model.ReadingNear(11).ValueText);
         }
 
         private static ConnectionMonitor NewMonitor()
         {
-            return new ConnectionMonitor(new InstantPinger(), new NoTrafficCounter());
+            return Fakes.Monitor();
         }
 
         // The pinger answers on the spot, so the monitor holds exactly one sample as soon as StartAsync returns.
@@ -325,7 +393,7 @@ namespace PingMonitor.Core.Tests
         private static void Record(ConnectionMonitor monitor, int fromSecond, int toSecond)
         {
             for (int second = fromSecond; second < toSecond; second++)
-                monitor.AddSample(Began.AddSeconds(second), true, second, TrafficRate.Unknown);
+                monitor.AddSample(new Sample(Began.AddSeconds(second), true, second, CheckResult.Ok, CheckResult.Ok, TrafficRate.Unknown));
         }
 
         // Computed once already, as only a window that has been placed in the history can be moved.
@@ -365,22 +433,6 @@ namespace PingMonitor.Core.Tests
                 foreach (GraphPoint point in run)
                     if (point.Column == column) return (int)point.Value;
             return -1;
-        }
-
-        private sealed class InstantPinger : IPinger
-        {
-            public Task<int?> SendAsync(IPAddress address, int timeoutMs)
-            {
-                return Task.FromResult<int?>(20);
-            }
-        }
-
-        private sealed class NoTrafficCounter : ITrafficCounter
-        {
-            public TrafficTotals? Read(IPAddress target)
-            {
-                return null;
-            }
         }
     }
 }

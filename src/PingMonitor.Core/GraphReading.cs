@@ -3,7 +3,8 @@ namespace PingMonitor.Core
     // What the graph shows for a column when the mouse pointer hovers over it.
     public sealed class GraphReading
     {
-        internal GraphReading(int column, int maxMs, TrafficRate maxTraffic, string timeText, string valueText, string downText, string upText)
+        internal GraphReading(int column, int maxMs, TrafficRate maxTraffic, string timeText, string valueText, string checksText,
+                              string downText, string upText)
         {
             Column = column;
             HasValue = maxMs >= 0;
@@ -11,6 +12,7 @@ namespace PingMonitor.Core
             Traffic = maxTraffic;
             TimeText = timeText;
             ValueText = valueText;
+            ChecksText = checksText;
             DownText = downText;
             UpText = upText;
         }
@@ -27,6 +29,9 @@ namespace PingMonitor.Core
 
         public string TimeText { get; private set; }
         public string ValueText { get; private set; }
+
+        // The checks that failed in this column, such as "DNS failed"; null if none did.
+        public string ChecksText { get; private set; }
         public string DownText { get; private set; }
         public string UpText { get; private set; }
     }
