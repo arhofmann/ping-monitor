@@ -38,6 +38,8 @@ namespace PingMonitor.Avalonia
             rangeBox.ItemsSource = TimeRange.All;
             rangeBox.SelectedItem = TimeRange.Default;
             thresholdBox.Value = monitor.OutageThreshold;
+            dnsBox.IsChecked = monitor.CheckDns;
+            tcpBox.IsChecked = monitor.CheckTcp;
             outageList.ItemsSource = outageRows;
             ShowLogState(true);
 
@@ -101,6 +103,18 @@ namespace PingMonitor.Avalonia
         private void ThresholdChanged(object sender, NumericUpDownValueChangedEventArgs e)
         {
             if (e.NewValue.HasValue) monitor.OutageThreshold = (int)e.NewValue.Value;
+        }
+
+        // The checks can be switched during a measurement as well - say, when the target turns out not to accept
+        // TCP connections.
+        private void DnsCheckChosen(object sender, RoutedEventArgs e)
+        {
+            monitor.CheckDns = dnsBox.IsChecked == true;
+        }
+
+        private void TcpCheckChosen(object sender, RoutedEventArgs e)
+        {
+            monitor.CheckTcp = tcpBox.IsChecked == true;
         }
 
         // The switch applies to the whole application, so that dialogs follow as well.

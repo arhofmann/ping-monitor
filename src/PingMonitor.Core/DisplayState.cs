@@ -38,7 +38,7 @@ namespace PingMonitor.Core
         public string Status { get; private set; }
 
         // The same status in two parts for a large display: what is going on, and the figure that belongs to it -
-        // the response time while online, the duration of the outage while offline.
+        // the response time while online, the duration of the outage while one is in progress.
         public string StatusLabel { get; private set; }
         public string StatusFigure { get; private set; }
 
@@ -63,6 +63,8 @@ namespace PingMonitor.Core
             {
                 case ConnectionStatus.Online: return StatusLevel.Good;
                 case ConnectionStatus.PingLost: return StatusLevel.Warning;
+                case ConnectionStatus.CheckFailed: return StatusLevel.Warning;
+                case ConnectionStatus.Limited: return StatusLevel.Critical;
                 case ConnectionStatus.Offline: return StatusLevel.Critical;
                 default: return StatusLevel.Idle;
             }
@@ -78,6 +80,9 @@ namespace PingMonitor.Core
                 case ConnectionStatus.Starting: return "Starting …";
                 case ConnectionStatus.Offline: return "Offline for";
                 case ConnectionStatus.PingLost: return "Ping lost";
+                // Names the checks that are failing right now, such as "DNS failed" or "DNS + TCP failing for".
+                case ConnectionStatus.CheckFailed: return Fmt.Failed(monitor.Last.Value.Failures) + " failed";
+                case ConnectionStatus.Limited: return Fmt.Failed(monitor.Last.Value.Failures) + " failing for";
                 default: return "Online";
             }
         }
@@ -87,6 +92,7 @@ namespace PingMonitor.Core
             switch (status)
             {
                 case ConnectionStatus.Offline: return Fmt.Duration(monitor.CurrentOutage.Duration(nowUtc));
+                case ConnectionStatus.Limited: return Fmt.Duration(monitor.CurrentOutage.Duration(nowUtc));
                 case ConnectionStatus.Online: return Fmt.Ms(monitor.Last.Value.Ms);
                 default: return NoValue;
             }
@@ -97,6 +103,7 @@ namespace PingMonitor.Core
             switch (status)
             {
                 case ConnectionStatus.Offline: return StatusLabel + " " + StatusFigure;
+                case ConnectionStatus.Limited: return StatusLabel + " " + StatusFigure;
                 case ConnectionStatus.Online: return StatusLabel + " – " + StatusFigure;
                 default: return StatusLabel;
             }

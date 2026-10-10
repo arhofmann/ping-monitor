@@ -10,6 +10,11 @@ namespace PingMonitor.Core
     {
         private const string FileName = "PingMonitor_Outages.csv";
 
+        private const string Header = "Target;Start;End;Duration (seconds);Lost pings;Note;Failed";
+
+        // The header of a log that was started before the checks existed: the last column is missing.
+        private const string HeaderWithoutFailed = "Target;Start;End;Duration (seconds);Lost pings;Note";
+
         public CsvOutageLog(string filePath)
         {
             if (filePath == null) throw new ArgumentNullException("filePath");
@@ -72,13 +77,15 @@ namespace PingMonitor.Core
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath));
                 StringBuilder text = new StringBuilder();
-                if (!File.Exists(FilePath)) text.AppendLine("Target;Start;End;Duration (seconds);Lost pings;Note");
+                if (File.Exists(FilePath)) AddMissingColumn();
+                else text.AppendLine(Header);
                 text.Append(outage.Target).Append(';')
                     .Append(Fmt.FileStamp(outage.Start)).Append(';')
                     .Append(Fmt.FileStamp(outage.End)).Append(';')
                     .Append(Math.Round((outage.End - outage.Start).TotalSeconds).ToString("0", CultureInfo.InvariantCulture)).Append(';')
                     .Append(outage.LostPings).Append(';')
-                    .AppendLine(outage.EndedByStop ? "Measurement stopped before the outage ended" : "");
+                    .Append(outage.EndedByStop ? "Measurement stopped before the outage ended" : "").Append(';')
+                    .AppendLine(Fmt.Failed(outage.Failures));
                 File.AppendAllText(FilePath, text.ToString(), new UTF8Encoding(true));
                 return true;
             }
@@ -87,6 +94,26 @@ namespace PingMonitor.Core
                 // The log is only an extra; the measurement must not abort because of it (e.g. file currently open in Excel).
                 return false;
             }
+        }
+
+        // Brings a log from before the checks existed up to date, so that old and new rows fit under one header.
+        // Back then an outage was always a row of lost pings - that is what the new column says for the old rows.
+        private void AddMissingColumn()
+        {
+            using (StreamReader reader = new StreamReader(FilePath))
+            {
+                if (reader.ReadLine() != HeaderWithoutFailed) return;
+            }
+
+            string[] lines = File.ReadAllLines(FilePath);
+            lines[0] = Header;
+            for (int i = 1; i < lines.Length; i++)
+                if (lines[i].Length > 0) lines[i] += ";" + Fmt.Failed(Failures.Ping);
+
+            // Written next to the log and then moved into its place - the log is never left half-written.
+            string updated = FilePath + ".tmp";
+            File.WriteAllLines(updated, lines, new UTF8Encoding(true));
+            File.Move(updated, FilePath, true);
         }
     }
 }

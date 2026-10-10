@@ -3,7 +3,7 @@ using System.Globalization;
 
 namespace PingMonitor.Core
 {
-    // Uniform formatting of response times, data rates, durations and timestamps in display and CSV.
+    // Uniform formatting of response times, data rates, durations, timestamps and failures in display and CSV.
     public static class Fmt
     {
         // What is shown follows the regional settings of the system: decimal separator, order of day and month,
@@ -43,6 +43,16 @@ namespace PingMonitor.Core
             if (s < 60) return s + " s";
             if (s < 3600) return (s / 60) + " min " + (s % 60).ToString("00") + " s";
             return (s / 3600) + " h " + ((s % 3600) / 60).ToString("00") + " min";
+        }
+
+        // What failed, such as "DNS" or "Ping + DNS + TCP". The plus keeps commas out of the CSV files.
+        public static string Failed(Failures failures)
+        {
+            string text = "";
+            if ((failures & Failures.Ping) != 0) text = "Ping";
+            if ((failures & Failures.Dns) != 0) text += (text.Length > 0 ? " + " : "") + "DNS";
+            if ((failures & Failures.Tcp) != 0) text += (text.Length > 0 ? " + " : "") + "TCP";
+            return text;
         }
 
         // Date and time of day as shown on screen.

@@ -47,7 +47,7 @@ namespace PingMonitor.Avalonia
         private const double WheelZoom = 1.3;
         private const double WheelPanShare = 0.1;
 
-        // How strongly the red of an outage and the color of the response time shine through behind the lines.
+        // How strongly the color of an outage and that of the response time shine through behind the lines.
         private const double OutageWashOpacity = 0.16;
         private const double PingFillOpacity = 0.12;
 
@@ -85,7 +85,8 @@ namespace PingMonitor.Avalonia
 
         // The colors of the appearance named in "coloredFor"; UseColorsOf fetches them when the appearance changes.
         private ThemeVariant coloredFor;
-        private IImmutableBrush surface, inkPrimary, inkSecondary, inkMuted, gridLine, axisLine, critical, outageWash, pingFill;
+        private IImmutableBrush surface, inkPrimary, inkSecondary, inkMuted, gridLine, axisLine, pingFill;
+        private IImmutableBrush critical, outageWash, warning, limitedWash;
         private IImmutableBrush accent, onAccent;
         private IPen pingLine, downloadLine, uploadLine, markerRing;
 
@@ -222,7 +223,8 @@ namespace PingMonitor.Avalonia
             if (model.IsMoving) RedrawIn(model.TimeToNextColumn);
 
             double x = DrawLineKey(context, pingPlot, pingPlot.Left, pingLine, "Response time");
-            DrawOutageKey(context, pingPlot, x, "No response");
+            x = DrawBlockKey(context, pingPlot, x, critical, "No response");
+            DrawBlockKey(context, pingPlot, x, warning, "DNS or TCP failed");
             x = DrawLineKey(context, ratePlot, ratePlot.Left, downloadLine, "Download");
             DrawLineKey(context, ratePlot, x, uploadLine, "Upload");
 
@@ -262,6 +264,17 @@ namespace PingMonitor.Avalonia
         private static void FillCrisp(DrawingContext context, IBrush brush, Rect area)
         {
             using (context.PushRenderOptions(Crisp)) context.FillRectangle(brush, area);
+        }
+
+        // Shades the given columns from top to bottom; "strip" is the color of a bold strip at their top, or null for none.
+        private static void DrawBlocks(DrawingContext context, Rect plot, List<ColumnRange> ranges, IBrush wash, IBrush strip)
+        {
+            foreach (ColumnRange range in ranges)
+            {
+                double width = Math.Max(range.Length, 2);
+                FillCrisp(context, wash, new Rect(plot.Left + range.Start, plot.Top, width, plot.Height));
+                if (strip != null) FillCrisp(context, strip, new Rect(plot.Left + range.Start, plot.Top, width, 3));
+            }
         }
 
         // The position of a value in the chart: horizontally the center of its column, vertically according to the value axis.
@@ -388,6 +401,8 @@ namespace PingMonitor.Avalonia
             axisLine = new ImmutableSolidColorBrush(ColorOf("AxisBrush"));
             critical = new ImmutableSolidColorBrush(ColorOf("CriticalBrush"));
             outageWash = new ImmutableSolidColorBrush(ColorOf("CriticalBrush"), OutageWashOpacity);
+            warning = new ImmutableSolidColorBrush(ColorOf("WarningBrush"));
+            limitedWash = new ImmutableSolidColorBrush(ColorOf("WarningBrush"), OutageWashOpacity);
             pingFill = new ImmutableSolidColorBrush(ColorOf("PingBrush"), PingFillOpacity);
             accent = new ImmutableSolidColorBrush(ColorOf("AccentBrush"));
             onAccent = new ImmutableSolidColorBrush(ColorOf("OnAccentBrush"));
@@ -426,11 +441,12 @@ namespace PingMonitor.Avalonia
             return DrawLegendCaption(context, plot, x + 24, caption);
         }
 
-        private void DrawOutageKey(DrawingContext context, Rect plot, double x, string caption)
+        // Legend entry of the blocks that mark an outage; returns the position where the next entry starts.
+        private double DrawBlockKey(DrawingContext context, Rect plot, double x, IBrush color, string caption)
         {
             double mid = plot.Top - LegendHeight / 2;
-            context.DrawRectangle(critical, null, new Rect(x, mid - 5, 10, 10), 2, 2);
-            DrawLegendCaption(context, plot, x + 16, caption);
+            context.DrawRectangle(color, null, new Rect(x, mid - 5, 10, 10), 2, 2);
+            return DrawLegendCaption(context, plot, x + 16, caption);
         }
 
         private double DrawLegendCaption(DrawingContext context, Rect plot, double x, string caption)
@@ -464,15 +480,12 @@ namespace PingMonitor.Avalonia
             }
         }
 
-        // Outages are shaded behind both charts; only the upper one carries the bold strip.
+        // Outages are shaded behind both charts; only the upper one carries the bold strip. Lost pings are drawn last:
+        // where a column holds both, they are what shows.
         private void DrawOutages(DrawingContext context, Rect plot, bool withStrip)
         {
-            foreach (ColumnRange range in model.OutageRanges())
-            {
-                double width = Math.Max(range.Length, 2);
-                FillCrisp(context, outageWash, new Rect(plot.Left + range.Start, plot.Top, width, plot.Height));
-                if (withStrip) FillCrisp(context, critical, new Rect(plot.Left + range.Start, plot.Top, width, 3));
-            }
+            DrawBlocks(context, plot, model.LimitedRanges(), limitedWash, withStrip ? warning : null);
+            DrawBlocks(context, plot, model.OutageRanges(), outageWash, withStrip ? critical : null);
         }
 
         // The entire history as a bar with its outages marked. The thumb is the part of it that the charts show.
@@ -497,7 +510,9 @@ namespace PingMonitor.Avalonia
             {
                 context.FillRectangle(gridLine, bar);
                 context.DrawRectangle(active ? inkMuted : axisLine, null, thumb, radius, radius);
-                foreach (ColumnRange outage in model.OutagesInOverview(width))
+                foreach (ColumnRange outage in model.OutagesInOverview(width, true))
+                    FillCrisp(context, warning, new Rect(bar.Left + outage.Start, bar.Top, Math.Max(outage.Length, 2), bar.Height));
+                foreach (ColumnRange outage in model.OutagesInOverview(width, false))
                     FillCrisp(context, critical, new Rect(bar.Left + outage.Start, bar.Top, Math.Max(outage.Length, 2), bar.Height));
             }
         }
@@ -542,7 +557,11 @@ namespace PingMonitor.Avalonia
             FormattedText value = Text(reading.ValueText, inkPrimary);
             value.SetFontWeight(FontWeight.Bold);
 
-            // The data rates go below the response time, each preceded by a dash in the color of its line.
+            // Failed checks get a line of their own below the response time - that one may well be fine.
+            FormattedText checks = reading.ChecksText == null ? null : Text(reading.ChecksText, inkPrimary);
+            double checksHeight = checks == null ? 0 : checks.Height;
+
+            // The data rates go below that, each preceded by a dash in the color of its line.
             FormattedText[] rates = reading.Traffic.IsKnown
                 ? new FormattedText[] { Text("Download " + reading.DownText, inkPrimary), Text("Upload " + reading.UpText, inkPrimary) }
                 : new FormattedText[0];
@@ -551,10 +570,11 @@ namespace PingMonitor.Avalonia
             const double pad = 8, keyWidth = 16, rowGap = 2;
             double rowHeight = time.Height + rowGap;
             double textWidth = Math.Max(time.Width, value.Width);
+            if (checks != null) textWidth = Math.Max(textWidth, checks.Width);
             foreach (FormattedText rate in rates) textWidth = Math.Max(textWidth, keyWidth + rate.Width);
 
             double boxWidth = Math.Ceiling(textWidth) + 2 * pad;
-            double boxHeight = Math.Ceiling(time.Height + value.Height + rates.Length * rowHeight) + 2 * pad;
+            double boxHeight = Math.Ceiling(time.Height + value.Height + checksHeight + rates.Length * rowHeight) + 2 * pad;
             double boxX = x + 10;
             if (boxX + boxWidth > plot.Right) boxX = x - 10 - boxWidth;
             Rect box = new Rect(boxX, plot.Top + 10, boxWidth, boxHeight);
@@ -563,8 +583,9 @@ namespace PingMonitor.Avalonia
             context.DrawRectangle(surface, new ImmutablePen(axisLine, pixel), box.Deflate(pixel / 2), 6, 6);
             context.DrawText(time, new Point(box.Left + pad, box.Top + pad));
             context.DrawText(value, new Point(box.Left + pad, box.Top + pad + time.Height));
+            if (checks != null) context.DrawText(checks, new Point(box.Left + pad, box.Top + pad + time.Height + value.Height));
 
-            double rowY = box.Top + pad + time.Height + value.Height + rowGap;
+            double rowY = box.Top + pad + time.Height + value.Height + checksHeight + rowGap;
             for (int i = 0; i < rates.Length; i++)
             {
                 double keyY = Math.Round(rowY + rates[i].Height / 2);

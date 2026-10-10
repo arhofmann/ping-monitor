@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 
 namespace PingMonitor.Core
 {
-    // Pings a target at a fixed interval, keeps the history and detects outages. For every ping it records
-    // how much went over the line in the time before it - this shows whether disruptions coincide with heavy load.
+    // Pings a target at a fixed interval, keeps the history and detects outages. Alongside every ping it checks
+    // whether names can be resolved and whether a TCP connection to the target can be established: both can fail
+    // while pings still get through. For every ping it also records how much went over the line in the time
+    // before it - this shows whether disruptions coincide with heavy load.
     //
     // Not thread-safe: all calls and events run on the thread that calls StartAsync.
     // With a UI that is the UI thread - so the events may change the display directly.
@@ -18,6 +20,8 @@ namespace PingMonitor.Core
         private const int MaxSamples = 2000000;
 
         private readonly IPinger pinger;
+        private readonly IDnsProbe dnsProbe;
+        private readonly ITcpProbe tcpProbe;
         private readonly ITrafficCounter trafficCounter;
         private readonly TrafficMeter trafficMeter = new TrafficMeter();
         private readonly Stopwatch trafficClock = Stopwatch.StartNew();
@@ -27,19 +31,29 @@ namespace PingMonitor.Core
 
         private bool resolving;
         private int generation;
-        private int consecutiveFails;
-        private DateTime firstFailTime;
         private TimeSpan closedDowntime;
 
-        public ConnectionMonitor(IPinger pinger, ITrafficCounter trafficCounter)
+        // The disruption in progress: how many samples in a row have failed, since when, and what failed in them.
+        private int consecutiveFails;
+        private DateTime firstFailTime;
+        private int lostPings;
+        private Failures failures;
+
+        public ConnectionMonitor(IPinger pinger, IDnsProbe dnsProbe, ITcpProbe tcpProbe, ITrafficCounter trafficCounter)
         {
             if (pinger == null) throw new ArgumentNullException("pinger");
+            if (dnsProbe == null) throw new ArgumentNullException("dnsProbe");
+            if (tcpProbe == null) throw new ArgumentNullException("tcpProbe");
             if (trafficCounter == null) throw new ArgumentNullException("trafficCounter");
             this.pinger = pinger;
+            this.dnsProbe = dnsProbe;
+            this.tcpProbe = tcpProbe;
             this.trafficCounter = trafficCounter;
             Target = "";
             IntervalMs = 1000;
             OutageThreshold = 2;
+            CheckDns = true;
+            CheckTcp = true;
         }
 
         // Status, statistics or history have changed.
@@ -74,8 +88,14 @@ namespace PingMonitor.Core
         // The outage currently in progress, or null.
         public Outage CurrentOutage { get; private set; }
 
-        // From this many consecutive lost pings on, a disruption counts as an outage.
+        // From this many consecutive failed samples on, a disruption counts as an outage.
+        // A sample has failed if its ping was lost or one of its checks failed.
         public int OutageThreshold { get; set; }
+
+        // Whether the checks run alongside the ping. Both can be switched while the measurement is running;
+        // the next sample then goes by the new setting.
+        public bool CheckDns { get; set; }
+        public bool CheckTcp { get; set; }
 
         public bool CanStart
         {
@@ -89,8 +109,9 @@ namespace PingMonitor.Core
                 if (resolving) return ConnectionStatus.Resolving;
                 if (!IsRunning) return samples.Count == 0 ? ConnectionStatus.Ready : ConnectionStatus.Stopped;
                 if (!Last.HasValue) return ConnectionStatus.Starting;
-                if (CurrentOutage != null) return ConnectionStatus.Offline;
-                return Last.Value.Ok ? ConnectionStatus.Online : ConnectionStatus.PingLost;
+                if (CurrentOutage != null) return Last.Value.Ok ? ConnectionStatus.Limited : ConnectionStatus.Offline;
+                if (!Last.Value.Ok) return ConnectionStatus.PingLost;
+                return Last.Value.Failures == Failures.None ? ConnectionStatus.Online : ConnectionStatus.CheckFailed;
             }
         }
 
@@ -184,21 +205,58 @@ namespace PingMonitor.Core
             {
                 DateTime sent = DateTime.UtcNow;
                 Stopwatch watch = Stopwatch.StartNew();
-                int? ms = null;
-                try
-                {
-                    ms = await pinger.SendAsync(address, timeout);
-                }
-                catch (Exception)
-                {
-                    // Without any network at all (cable unplugged, Wi-Fi off) Ping throws an exception - that is a lost ping.
-                }
+
+                // Ping and checks run side by side - one that has to wait for its timeout does not hold up the others.
+                Task<int?> ping = PingAsync(address, timeout);
+                Task<CheckResult> dns = CheckDnsAsync(timeout);
+                Task<CheckResult> tcp = CheckTcpAsync(address, timeout);
+                await Task.WhenAll(ping, dns, tcp);
 
                 if (!IsRunning || myGeneration != generation) return;
-                AddSample(sent, ms.HasValue, ms.GetValueOrDefault(), MeasureTraffic(address));
+                int? ms = ping.Result;
+                AddSample(new Sample(sent, ms.HasValue, ms.GetValueOrDefault(), dns.Result, tcp.Result, MeasureTraffic(address)));
 
                 int rest = IntervalMs - (int)watch.ElapsedMilliseconds;
                 if (rest > 0) await Task.Delay(rest);
+            }
+        }
+
+        private async Task<int?> PingAsync(IPAddress address, int timeout)
+        {
+            try
+            {
+                return await pinger.SendAsync(address, timeout);
+            }
+            catch (Exception)
+            {
+                // Without any network at all (cable unplugged, Wi-Fi off) Ping throws an exception - that is a lost ping.
+                return null;
+            }
+        }
+
+        private async Task<CheckResult> CheckDnsAsync(int timeout)
+        {
+            if (!CheckDns) return CheckResult.None;
+            try
+            {
+                return await dnsProbe.QueryAsync(timeout) ? CheckResult.Ok : CheckResult.Failed;
+            }
+            catch (Exception)
+            {
+                return CheckResult.Failed;
+            }
+        }
+
+        private async Task<CheckResult> CheckTcpAsync(IPAddress address, int timeout)
+        {
+            if (!CheckTcp) return CheckResult.None;
+            try
+            {
+                return await tcpProbe.ConnectAsync(address, timeout) ? CheckResult.Ok : CheckResult.Failed;
+            }
+            catch (Exception)
+            {
+                return CheckResult.Failed;
             }
         }
 
@@ -218,23 +276,34 @@ namespace PingMonitor.Core
         }
 
         // Internal rather than private so that the tests can build a history without waiting for the clock.
-        internal void AddSample(DateTime timeUtc, bool ok, int ms, TrafficRate traffic)
+        internal void AddSample(Sample sample)
         {
-            Sample sample = new Sample(timeUtc, ok, ms, traffic);
             samples.Add(sample);
             if (samples.Count > MaxSamples) samples.RemoveRange(0, MaxSamples / 10);
 
             Last = sample;
             statistics.Add(sample);
-            if (ok)
+            if (sample.Failures == Failures.None)
             {
                 consecutiveFails = 0;
-                if (CurrentOutage != null) CloseOutage(timeUtc, false);
+                if (CurrentOutage != null) CloseOutage(sample.Time, false);
             }
             else
             {
-                if (consecutiveFails++ == 0) firstFailTime = timeUtc;
-                if (CurrentOutage != null) CurrentOutage.LostPings = consecutiveFails;
+                if (consecutiveFails++ == 0)
+                {
+                    firstFailTime = sample.Time;
+                    lostPings = 0;
+                    failures = Failures.None;
+                }
+                if (!sample.Ok) lostPings++;
+                failures |= sample.Failures;
+
+                if (CurrentOutage != null)
+                {
+                    CurrentOutage.LostPings = lostPings;
+                    CurrentOutage.Failures = failures;
+                }
                 else if (consecutiveFails >= OutageThreshold) OpenOutage();
             }
             OnChanged();
@@ -242,7 +311,7 @@ namespace PingMonitor.Core
 
         private void OpenOutage()
         {
-            CurrentOutage = new Outage(Target, firstFailTime, consecutiveFails);
+            CurrentOutage = new Outage(Target, firstFailTime, lostPings, failures);
             outages.Add(CurrentOutage);
             Raise(OutageStarted, CurrentOutage);
         }

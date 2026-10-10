@@ -5,7 +5,7 @@ using PingMonitor.Core;
 namespace PingMonitor.Avalonia
 {
     // One row of the outage list. Its texts come from OutageRow in the core; all that is added here is that the list
-    // learns when they change - while an outage is in progress, duration and lost pings keep counting up.
+    // learns when they change - while an outage is in progress, its duration keeps counting up, and more may fail.
     internal sealed class OutageListRow : INotifyPropertyChanged
     {
         private readonly Outage outage;
@@ -34,9 +34,9 @@ namespace PingMonitor.Avalonia
             get { return texts.Duration; }
         }
 
-        public string LostPings
+        public string Failed
         {
-            get { return texts.LostPings; }
+            get { return texts.Failed; }
         }
 
         public string Target

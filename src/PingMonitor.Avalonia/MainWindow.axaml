@@ -7,7 +7,7 @@
         Title="{Binding Title}"
         Icon="/Assets/icon.ico"
         Width="1000" Height="760"
-        MinWidth="880" MinHeight="620"
+        MinWidth="900" MinHeight="620"
         Background="{DynamicResource WindowBrush}"
         WindowStartupLocation="CenterScreen">
 
@@ -237,6 +237,15 @@
                                            FormatString="0" ParsingNumberStyle="Integer"
                                            ToolTip.Tip="Time between two pings in seconds." />
                         </Grid>
+                        <Grid Classes="field" ColumnDefinitions="*,132">
+                            <TextBlock Text="Also check" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
+                                <CheckBox Name="dnsBox" Content="DNS" MinWidth="0" IsCheckedChanged="DnsCheckChosen"
+                                          ToolTip.Tip="With every ping, also ask the DNS servers of this computer for a name (example.com).&#x0a;This shows when names can no longer be resolved although pings still get through." />
+                                <CheckBox Name="tcpBox" Content="TCP" MinWidth="0" IsCheckedChanged="TcpCheckChosen"
+                                          ToolTip.Tip="With every ping, also open a TCP connection to port 443 of the target.&#x0a;This shows when connections can no longer be established although pings still get through.&#x0a;Turn it off for a target that does not accept connections on that port." />
+                            </StackPanel>
+                        </Grid>
                         <!-- Start and Stop share one place; UpdateControls shows the one that applies. -->
                         <Panel Margin="0,2,0,0">
                             <Button Name="startButton" Classes="primary" IsDefault="True" Click="StartClicked">
@@ -268,7 +277,7 @@
                             <TextBlock Text="Counted from" />
                             <NumericUpDown Name="thresholdBox" Width="108" Minimum="1" Maximum="30"
                                            FormatString="0" ParsingNumberStyle="Integer" ValueChanged="ThresholdChanged" />
-                            <TextBlock Text="lost pings in a row" />
+                            <TextBlock Text="failures in a row" />
                         </WrapPanel>
                     </StackPanel>
                 </StackPanel>
@@ -344,7 +353,8 @@
                     </StackPanel>
                     <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource LineBrush}" />
                     <!-- The column widths are sized so that the narrowest window needs no horizontal scrolling
-                         and the default one shows "(stopped)" after the end of an outage in full. -->
+                         and the default one shows "(stopped)" after the end of an outage in full.
+                         "Failed" has room for its longest text, "Ping + DNS + TCP". -->
                     <DataGrid Name="outageList" x:DataType="local:OutageListRow"
                               IsReadOnly="True" CanUserSortColumns="False" CanUserReorderColumns="False"
                               HeadersVisibility="Column" GridLinesVisibility="Horizontal"
@@ -353,7 +363,7 @@
                             <DataGridTextColumn Header="Start" Width="150" Binding="{Binding Start}" />
                             <DataGridTextColumn Header="End" Width="3*" MinWidth="150" Binding="{Binding End}" />
                             <DataGridTextColumn Header="Duration" Width="100" Binding="{Binding Duration}" />
-                            <DataGridTextColumn Header="Lost pings" Width="110" Binding="{Binding LostPings}" />
+                            <DataGridTextColumn Header="Failed" Width="134" Binding="{Binding Failed}" />
                             <DataGridTextColumn Header="Target" Width="*" MinWidth="86" Binding="{Binding Target}" />
                         </DataGrid.Columns>
                     </DataGrid>
